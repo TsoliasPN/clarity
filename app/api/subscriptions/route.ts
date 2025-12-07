@@ -1,150 +1,211 @@
 import { NextResponse } from 'next/server'
-import { CycleType, Subscription } from '@prisma/client'
+import { z } from 'zod'
+import { CycleType, Status } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import {
+  normalizeSubscription,
+  summarizeNormalized,
+  parseDecimal,
+  coerceIsoDate,
+  enforceCurrency
+} from '@/lib/subscriptions'
+import { loadUserContext, resolveUserId, badRequest, logAudit } from '@/lib/api-helpers'
 
-type RateMap = Record<string, number>
+const costSchema = z
+  .union([z.number(), z.string()])
+  .transform((val) => {
+    const num = typeof val === 'string' ? Number(val) : val
+    if (!Number.isFinite(num)) throw new Error('Invalid cost')
+    return num
+  })
+  .refine((num) => num >= 0, 'Cost must be positive')
 
-const MONTHLY_MULTIPLIER: Record<CycleType, number> = {
-  WEEKLY: 52 / 12, // weekly -> monthly approximation
-  MONTHLY: 1,
-  QUARTERLY: 1 / 3,
-  YEARLY: 1 / 12
-}
+const dateSchema = z.union([z.string(), z.date()]).transform(coerceIsoDate)
+const currencySchema = z.string().min(3).max(3).transform(enforceCurrency)
 
-function resolveUserId(request: Request): string | null {
-  const url = new URL(request.url)
-  return (
-    url.searchParams.get('userId') ||
-    request.headers.get('x-user-id') ||
-    process.env.DEMO_USER_ID ||
-    null
-  )
-}
+const subscriptionCreateSchema = z.object({
+  name: z.string().min(1),
+  provider: z.string().optional().nullable(),
+  cost: costSchema,
+  currency: currencySchema,
+  billingCycle: z.nativeEnum(CycleType),
+  startDate: dateSchema,
+  nextBillDate: dateSchema,
+  status: z.nativeEnum(Status).default(Status.ACTIVE),
+  category: z.string().optional().nullable(),
+  description: z.string().optional().nullable()
+})
 
-function normalizeCurrency(
-  amount: number,
-  sourceCurrency: string,
-  targetCurrency: string,
-  rates: RateMap
-) {
-  const missing: string[] = []
-  const sourceRate = rates[sourceCurrency]
-  const targetRate = rates[targetCurrency]
-
-  if (!sourceRate) missing.push(sourceCurrency)
-  if (!targetRate) missing.push(targetCurrency)
-
-  if (missing.length) {
-    return { amount, converted: false, missing }
-  }
-
-  const usdValue = amount / sourceRate
-  const normalized = usdValue * targetRate
-
-  return { amount: normalized, converted: true, missing }
-}
+const subscriptionUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  provider: z.string().optional().nullable(),
+  cost: costSchema.optional(),
+  currency: currencySchema.optional(),
+  billingCycle: z.nativeEnum(CycleType).optional(),
+  startDate: dateSchema.optional(),
+  nextBillDate: dateSchema.optional(),
+  status: z.nativeEnum(Status).optional(),
+  category: z.string().optional().nullable(),
+  description: z.string().optional().nullable()
+})
 
 export async function GET(request: Request) {
   try {
     const userId = resolveUserId(request)
+    if (!userId) return badRequest('Missing userId')
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
-    }
+    const context = await loadUserContext(userId)
+    if (!context) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-    const [user, subscriptions, rates] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { baseCurrency: true }
-      }),
+    const [subscriptions, alerts] = await Promise.all([
       prisma.subscription.findMany({
         where: { userId },
         orderBy: { nextBillDate: 'asc' }
       }),
-      prisma.exchangeRate.findMany()
+      prisma.alert.findMany({
+        where: { userId },
+        orderBy: { triggerDate: 'asc' },
+        take: 20
+      })
     ])
 
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    const rateMap: RateMap = { USD: 1 }
-    rates.forEach((rate) => {
-      rateMap[rate.currencyCode] = rate.rateToUSD.toNumber()
-    })
-
     const missingRates = new Set<string>()
-
-    const normalizedSubscriptions = subscriptions.map((sub) => {
-      const sourceCurrency = sub.currency
-      const targetCurrency = user.baseCurrency
-      const cost = sub.cost.toNumber()
-
-      const { amount: normalizedCostRaw, converted, missing } = normalizeCurrency(
-        cost,
-        sourceCurrency,
-        targetCurrency,
-        rateMap
-      )
-
-      missing.forEach((code) => missingRates.add(code))
-
-      const monthlyMultiplier = MONTHLY_MULTIPLIER[sub.billingCycle] ?? 1
-      const normalizedCost = Number(normalizedCostRaw.toFixed(2))
-      const normalizedMonthlyCost = Number(
-        (normalizedCostRaw * monthlyMultiplier).toFixed(2)
-      )
-
-      return {
-        ...sub,
-        cost,
-        normalizedCost,
-        normalizedMonthlyCost,
-        wasConverted: converted,
-        displayNote:
-          converted && sourceCurrency !== targetCurrency
-            ? `Approx ${targetCurrency} ${normalizedCost.toFixed(
-                2
-              )} (${sourceCurrency}->${targetCurrency})`
-            : null
-      }
+    const normalized = subscriptions.map((sub) => {
+      const result = normalizeSubscription(sub, context.user.baseCurrency, context.rateMap)
+      result.missingRates.forEach((code) => missingRates.add(code))
+      return result
     })
 
-    const totalMonthlySpend = normalizedSubscriptions.reduce(
-      (sum, sub) => sum + sub.normalizedMonthlyCost,
-      0
-    )
-
-    const spendByCategory = normalizedSubscriptions.reduce(
-      (acc, sub) => {
-        const category = sub.category ?? 'Uncategorized'
-        acc[category] = Number(
-          ((acc[category] ?? 0) + sub.normalizedMonthlyCost).toFixed(2)
-        )
-        return acc
-      },
-      {} as Record<string, number>
-    )
-
-    const statusCounts = normalizedSubscriptions.reduce(
-      (acc, sub) => {
-        acc[sub.status] = (acc[sub.status] ?? 0) + 1
-        return acc
-      },
-      {} as Record<Subscription['status'], number>
-    )
+    const summary = summarizeNormalized(normalized)
 
     return NextResponse.json({
-      data: normalizedSubscriptions,
+      data: normalized,
+      alerts,
       meta: {
-        baseCurrency: user.baseCurrency,
-        totalMonthlySpend: Number(totalMonthlySpend.toFixed(2)),
-        count: normalizedSubscriptions.length,
-        missingRates: Array.from(missingRates),
-        spendByCategory,
-        statusCounts
+        baseCurrency: context.user.baseCurrency,
+        ...summary,
+        count: normalized.length,
+        missingRates: Array.from(missingRates)
       }
     })
+  } catch (error) {
+    console.error('API Error:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const userId = resolveUserId(request)
+    if (!userId) return badRequest('Missing userId')
+
+    const context = await loadUserContext(userId)
+    if (!context) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+    const body = await request.json()
+    const parsed = subscriptionCreateSchema.parse(body)
+
+    const created = await prisma.subscription.create({
+      data: {
+        ...parsed,
+        userId,
+        cost: parseDecimal(parsed.cost),
+        currency: enforceCurrency(parsed.currency),
+        startDate: parsed.startDate,
+        nextBillDate: parsed.nextBillDate,
+        status: parsed.status ?? Status.ACTIVE
+      }
+    })
+
+    await logAudit({
+      userId,
+      subscriptionId: created.id,
+      action: 'SUBSCRIPTION_CREATED',
+      payload: parsed
+    })
+
+    const normalized = normalizeSubscription(created, context.user.baseCurrency, context.rateMap)
+
+    return NextResponse.json({ data: normalized }, { status: 201 })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return badRequest(error.errors.map((e) => e.message).join('; '))
+    }
+    console.error('API Error:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const userId = resolveUserId(request)
+    if (!userId) return badRequest('Missing userId')
+
+    const url = new URL(request.url)
+    const id = url.searchParams.get('id')
+    if (!id) return badRequest('Missing subscription id')
+
+    const context = await loadUserContext(userId)
+    if (!context) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+    const existing = await prisma.subscription.findUnique({ where: { id } })
+    if (!existing || existing.userId !== userId) {
+      return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
+    }
+
+    const body = await request.json()
+    const parsed = subscriptionUpdateSchema.parse(body)
+
+    const updated = await prisma.subscription.update({
+      where: { id },
+      data: {
+        ...parsed,
+        cost: parsed.cost !== undefined ? parseDecimal(parsed.cost) : undefined,
+        currency: parsed.currency ? enforceCurrency(parsed.currency) : undefined,
+        startDate: parsed.startDate,
+        nextBillDate: parsed.nextBillDate
+      }
+    })
+
+    await logAudit({
+      userId,
+      subscriptionId: id,
+      action: 'SUBSCRIPTION_UPDATED',
+      payload: parsed
+    })
+
+    const normalized = normalizeSubscription(updated, context.user.baseCurrency, context.rateMap)
+    return NextResponse.json({ data: normalized })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return badRequest(error.errors.map((e) => e.message).join('; '))
+    }
+    console.error('API Error:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const userId = resolveUserId(request)
+    if (!userId) return badRequest('Missing userId')
+
+    const url = new URL(request.url)
+    const id = url.searchParams.get('id')
+    if (!id) return badRequest('Missing subscription id')
+
+    const existing = await prisma.subscription.findUnique({ where: { id } })
+    if (!existing || existing.userId !== userId) {
+      return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
+    }
+
+    await prisma.subscription.delete({ where: { id } })
+    await logAudit({
+      userId,
+      subscriptionId: id,
+      action: 'SUBSCRIPTION_DELETED'
+    })
+    return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
