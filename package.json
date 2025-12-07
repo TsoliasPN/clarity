@@ -11,6 +11,10 @@
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:seed": "prisma db seed"
   },
+  "vercel-deploy": {
+    "migrate": "npx prisma migrate deploy",
+    "seed": "npx prisma db seed"
+  },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
   },
