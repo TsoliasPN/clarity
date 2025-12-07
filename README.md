@@ -15,7 +15,9 @@ AI-powered, multi-currency subscription manager and analytics starter.
 - `/api/subscriptions` GET/POST/PATCH/DELETE with zod validation, FX normalization, monthly equivalents, category/status breakdowns, alerts included, and audit logging
 - `/api/subscriptions/import` CSV preview + optional commit (`?commit=true`) with FX/billing-cycle normalization
 - `/api/exchange-rates/refresh` to pull fresh USD-relative rates
+- `/api/health` for uptime checks (pings DB)
 - Landing page that visualizes normalized data + alerts, filters, category bars, CSV upload UI, and FX refresh action
+- Sample CSV: `samples/demo-subscriptions.csv`
 
 ## Next builds
 1) Add full auth/session (NextAuth or middleware) and replace demo fallback
@@ -28,4 +30,4 @@ AI-powered, multi-currency subscription manager and analytics starter.
 - Build commands (Vercel defaults): `npm install`, `npm run build`. Ensure `prisma generate` runs (Next.js does this during build).
 - One-off after first deploy: `npx prisma migrate deploy` then `npx prisma db seed` (only if you want demo data/FX cache). You can run these via Vercel CLI or a temporary build command, then revert to normal build.
 - Postgres options: Supabase, Neon, or RDS. Ensure public outbound is allowed for `/api/exchange-rates/refresh` (calls open.er-api.com). If outbound is blocked, seed FX rates manually.
-- Smoke test routes after deploy: `/` dashboard, `/api/subscriptions`, `/api/subscriptions/import`, `/api/exchange-rates/refresh`.
+- Smoke test routes after deploy: `/` dashboard, `/api/subscriptions`, `/api/subscriptions/import`, `/api/exchange-rates/refresh`, `/api/health`.

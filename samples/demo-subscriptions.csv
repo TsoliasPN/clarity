@@ -1,0 +1,7 @@
+name,provider,cost,currency,billingCycle,startDate,nextBillDate,status,category,description
+YouTube Premium,YouTube,13.99,USD,MONTHLY,2024-11-01,2025-07-01,ACTIVE,Streaming,Family plan
+AWS Dev,Amazon,45.00,USD,MONTHLY,2024-10-15,2025-07-15,ACTIVE,Cloud,Dev environment
+Canva Pro,Canva,12.99,EUR,MONTHLY,2025-01-05,2025-07-05,ACTIVE,Design,Monthly billed in EUR
+HBO Max,HBO,14.99,GBP,MONTHLY,2024-12-12,2025-07-12,ACTIVE,Streaming,Local currency
+Notion Team,Notion,120.00,USD,QUARTERLY,2025-02-01,2025-08-01,ACTIVE,Knowledge,Quarterly workspace
+Anki Plus,Anki,5.00,JPY,WEEKLY,2025-03-10,2025-06-24,PAUSED,Education,Weekly billed JPY
