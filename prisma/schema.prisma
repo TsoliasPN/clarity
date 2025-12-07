@@ -1,0 +1,90 @@
+// 1. DATABASE CONNECTION
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 2. USER MODEL
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?   
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // The currency they want to see totals in (e.g., "GBP")
+  baseCurrency  String    @default("USD") 
+
+  subscriptions Subscription[]
+  budgets       Budget[]
+  preferences   UserPreference?
+}
+
+// 3. SUBSCRIPTION MODEL
+model Subscription {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name          String    
+  provider      String?   
+  
+  // FINANCIALS
+  cost          Decimal   @db.Decimal(10, 2) 
+  currency      String    @default("USD")    // The billing currency
+
+  billingCycle  CycleType 
+  startDate     DateTime  @db.Date
+  nextBillDate  DateTime  @db.Date
+  status        Status    @default(ACTIVE)
+  
+  category      String?   
+  description   String?   @db.Text
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+// 4. EXCHANGE RATE CACHE
+model ExchangeRate {
+  currencyCode  String   @id 
+  rateToUSD     Decimal  @db.Decimal(20, 10) 
+  lastUpdated   DateTime @default(now())
+}
+
+// 5. SUPPORTING MODELS
+model Budget {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Decimal  @db.Decimal(10, 2)
+  currency  String   @default("USD") 
+  period    CycleType @default(MONTHLY)
+}
+
+model UserPreference {
+  id              String  @id @default(uuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id])
+  theme           String  @default("system")
+  emailAlerts     Boolean @default(true)
+}
+
+enum CycleType {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum Status {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
