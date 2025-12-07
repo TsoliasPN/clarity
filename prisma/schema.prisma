@@ -22,6 +22,8 @@ model User {
   subscriptions Subscription[]
   budgets       Budget[]
   preferences   UserPreference?
+  alerts        Alert[]
+  auditLogs     AuditLog[]
 }
 
 // 3. SUBSCRIPTION MODEL
@@ -58,7 +60,40 @@ model ExchangeRate {
   lastUpdated   DateTime @default(now())
 }
 
-// 5. SUPPORTING MODELS
+// 5. ALERTS
+model Alert {
+  id             String      @id @default(uuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId String?     
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  type           AlertType
+  severity       AlertSeverity @default(INFO)
+  message        String       @db.Text
+  triggerDate    DateTime     @default(now())
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([userId, isRead])
+  @@index([subscriptionId])
+}
+
+// 6. AUDIT LOGS
+model AuditLog {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  action         String
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([subscriptionId])
+}
+
+// 7. SUPPORTING MODELS
 model Budget {
   id        String   @id @default(uuid())
   userId    String
@@ -87,4 +122,19 @@ enum Status {
   ACTIVE
   PAUSED
   CANCELLED
+}
+
+enum AlertType {
+  RENEWAL_UPCOMING
+  BUDGET_OVERAGE
+  FX_DRIFT
+  UNUSED_SUBSCRIPTION
+  PAYMENT_FAILURE
+  PRICE_INCREASE
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
 }

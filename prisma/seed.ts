@@ -1,4 +1,4 @@
-import { PrismaClient, CycleType, Status } from '@prisma/client'
+import { PrismaClient, CycleType, Status, AlertType, AlertSeverity } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -117,6 +117,25 @@ const DEMO_SUBSCRIPTIONS = [
   }
 ]
 
+const DEMO_ALERTS = [
+  {
+    type: 'RENEWAL_UPCOMING',
+    severity: 'WARNING',
+    message: 'Netflix renews soon. Check if you still need 4K family plan.',
+    subscriptionName: 'Netflix'
+  },
+  {
+    type: 'BUDGET_OVERAGE',
+    severity: 'CRITICAL',
+    message: 'Design category is trending over budget driven by Adobe and Figma spend.'
+  },
+  {
+    type: 'FX_DRIFT',
+    severity: 'INFO',
+    message: 'EUR weakened vs GBP. Spotify monthly estimate adjusted.'
+  }
+]
+
 async function main() {
   console.log(`Start seeding exchange rates...`)
 
@@ -144,6 +163,9 @@ async function main() {
   console.log(`Ensuring subscriptions for user ${demoUser.email} (${demoUser.id})`)
 
   await prisma.subscription.deleteMany({ where: { userId: demoUser.id } })
+  await prisma.alert.deleteMany({ where: { userId: demoUser.id } })
+
+  const createdSubscriptions: Record<string, string> = {}
 
   for (const sub of DEMO_SUBSCRIPTIONS) {
     const subscription = await prisma.subscription.create({
@@ -153,6 +175,23 @@ async function main() {
       }
     })
     console.log(`Created subscription: ${subscription.name} (${subscription.currency})`)
+    createdSubscriptions[subscription.name] = subscription.id
+  }
+
+  for (const alert of DEMO_ALERTS) {
+    const subscriptionId = alert.subscriptionName
+      ? createdSubscriptions[alert.subscriptionName]
+      : undefined
+    await prisma.alert.create({
+      data: {
+        type: alert.type as AlertType,
+        severity: alert.severity as AlertSeverity,
+        message: alert.message,
+        userId: demoUser.id,
+        subscriptionId
+      }
+    })
+    console.log(`Created alert: ${alert.type} (${alert.severity})`)
   }
 
   console.log(`Seeding finished.`)
