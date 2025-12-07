@@ -12,11 +12,18 @@ function parseCookie(header: string | null, key: string) {
 export function resolveUserId(request: Request): string | null {
   const cookieHeader = request.headers.get('cookie')
   const cookieUser = parseCookie(cookieHeader, 'clarity_user_id')
-  return request.headers.get('x-user-id') || cookieUser || process.env.DEMO_USER_ID || null
+  const headerUser = request.headers.get('x-user-id')
+  if (headerUser) return headerUser
+  if (cookieUser) return cookieUser
+  // Fallback only in development for demos
+  if (process.env.NODE_ENV !== 'production' && process.env.DEMO_USER_ID) {
+    return process.env.DEMO_USER_ID
+  }
+  return null
 }
 
-export function badRequest(error: string) {
-  return NextResponse.json({ error }, { status: 400 })
+export function badRequest(message: string, code = 'BAD_REQUEST') {
+  return NextResponse.json({ error: { code, message } }, { status: 400 })
 }
 
 export async function loadUserContext(userId: string) {
