@@ -31,3 +31,7 @@ AI-powered, multi-currency subscription manager and analytics starter.
 - One-off after first deploy: `npx prisma migrate deploy` then `npx prisma db seed` (only if you want demo data/FX cache). You can run these via Vercel CLI or a temporary build command, then revert to normal build.
 - Postgres options: Supabase, Neon, or RDS. Ensure public outbound is allowed for `/api/exchange-rates/refresh` (calls open.er-api.com). If outbound is blocked, seed FX rates manually.
 - Smoke test routes after deploy: `/` dashboard, `/api/subscriptions`, `/api/subscriptions/import`, `/api/exchange-rates/refresh`, `/api/health`.
+
+## Testing
+- `npm run test` (vitest) for normalization math
+- `npm run lint` for Next/TypeScript linting

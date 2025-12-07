@@ -50,7 +50,7 @@ const importRowSchema = z
 export async function POST(request: Request) {
   try {
     const userId = resolveUserId(request)
-    if (!userId) return badRequest('Missing userId')
+    if (!userId) return badRequest('Missing user')
 
     const context = await loadUserContext(userId)
     if (!context) return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -75,6 +75,7 @@ export async function POST(request: Request) {
     const previews = []
     const errors: { row: number; message: string }[] = []
     const validRows: Awaited<ReturnType<typeof importRowSchema['parse']>>[] = []
+    const missingRates = new Set<string>()
 
     rows.forEach((row, index) => {
       try {
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
           context.user.baseCurrency,
           context.rateMap
         )
+        stub.missingRates.forEach((code) => missingRates.add(code))
         previews.push(stub)
       } catch (err: any) {
         const message = err instanceof z.ZodError ? err.errors.map((e) => e.message).join('; ') : 'Invalid row'
@@ -136,10 +138,11 @@ export async function POST(request: Request) {
         created: createdCount,
         committed: shouldCommit
       },
-      errors
+      errors,
+      missingRates: Array.from(missingRates)
     })
   } catch (error) {
     console.error('Import API Error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json({ error: { code: 'INTERNAL', message: 'Internal Server Error' } }, { status: 500 })
   }
 }

@@ -52,12 +52,12 @@ const subscriptionUpdateSchema = z.object({
 export async function GET(request: Request) {
   try {
     const userId = resolveUserId(request)
-    if (!userId) return badRequest('Missing userId')
+    if (!userId) return badRequest('Missing user')
 
     const context = await loadUserContext(userId)
     if (!context) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-    const [subscriptions, alerts] = await Promise.all([
+    const [subscriptions, alerts, ratesMeta] = await Promise.all([
       prisma.subscription.findMany({
         where: { userId },
         orderBy: { nextBillDate: 'asc' }
@@ -66,6 +66,10 @@ export async function GET(request: Request) {
         where: { userId },
         orderBy: { triggerDate: 'asc' },
         take: 20
+      }),
+      prisma.exchangeRate.aggregate({
+        _max: { lastUpdated: true },
+        _count: { currencyCode: true }
       })
     ])
 
@@ -85,19 +89,21 @@ export async function GET(request: Request) {
         baseCurrency: context.user.baseCurrency,
         ...summary,
         count: normalized.length,
-        missingRates: Array.from(missingRates)
+        missingRates: Array.from(missingRates),
+        fxLastUpdated: ratesMeta._max.lastUpdated,
+        fxCount: ratesMeta._count.currencyCode
       }
     })
   } catch (error) {
     console.error('API Error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json({ error: { code: 'INTERNAL', message: 'Internal Server Error' } }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
     const userId = resolveUserId(request)
-    if (!userId) return badRequest('Missing userId')
+    if (!userId) return badRequest('Missing user')
 
     const context = await loadUserContext(userId)
     if (!context) return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -132,14 +138,14 @@ export async function POST(request: Request) {
       return badRequest(error.errors.map((e) => e.message).join('; '))
     }
     console.error('API Error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json({ error: { code: 'INTERNAL', message: 'Internal Server Error' } }, { status: 500 })
   }
 }
 
 export async function PATCH(request: Request) {
   try {
     const userId = resolveUserId(request)
-    if (!userId) return badRequest('Missing userId')
+    if (!userId) return badRequest('Missing user')
 
     const url = new URL(request.url)
     const id = url.searchParams.get('id')
@@ -181,14 +187,14 @@ export async function PATCH(request: Request) {
       return badRequest(error.errors.map((e) => e.message).join('; '))
     }
     console.error('API Error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json({ error: { code: 'INTERNAL', message: 'Internal Server Error' } }, { status: 500 })
   }
 }
 
 export async function DELETE(request: Request) {
   try {
     const userId = resolveUserId(request)
-    if (!userId) return badRequest('Missing userId')
+    if (!userId) return badRequest('Missing user')
 
     const url = new URL(request.url)
     const id = url.searchParams.get('id')
@@ -208,6 +214,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('API Error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json({ error: { code: 'INTERNAL', message: 'Internal Server Error' } }, { status: 500 })
   }
 }
