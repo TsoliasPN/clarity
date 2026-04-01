@@ -9,7 +9,7 @@ export const MONTHLY_MULTIPLIER: Record<CycleType, number> = {
   YEARLY: 1 / 12
 }
 
-export type NormalizedSubscription = Subscription & {
+export type NormalizedSubscription = Omit<Subscription, 'cost'> & {
   cost: number
   normalizedCost: number
   normalizedMonthlyCost: number

@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     const csvText = await request.text()
     if (!csvText.trim()) return badRequest('CSV payload is empty')
 
-    let rows: any[]
+    let rows: Array<Record<string, unknown>>
     try {
       rows = parse(csvText, {
         columns: true,
@@ -72,9 +72,9 @@ export async function POST(request: Request) {
       return badRequest('Unable to parse CSV')
     }
 
-    const previews = []
+    const previews: Array<ReturnType<typeof normalizeSubscription> & { missingRates: string[] }> = []
     const errors: { row: number; message: string }[] = []
-    const validRows: Awaited<ReturnType<typeof importRowSchema['parse']>>[] = []
+    const validRows: z.output<typeof importRowSchema>[] = []
     const missingRates = new Set<string>()
 
     rows.forEach((row, index) => {
@@ -93,8 +93,8 @@ export async function POST(request: Request) {
             startDate: parsed.startDate,
             nextBillDate: parsed.nextBillDate,
             status: parsed.status,
-            category: parsed.category ?? undefined,
-            description: parsed.description ?? undefined,
+            category: parsed.category ?? null,
+            description: parsed.description ?? null,
             createdAt: new Date(),
             updatedAt: new Date()
           },

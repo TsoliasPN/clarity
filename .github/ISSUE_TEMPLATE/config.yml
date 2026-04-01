@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Read the contribution contract
+    url: https://github.com/pcoletsos/clarity/blob/main/CONTRIBUTING.md
+    about: Start here before opening a non-trivial issue.
