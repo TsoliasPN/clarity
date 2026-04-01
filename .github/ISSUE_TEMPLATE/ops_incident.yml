@@ -1,0 +1,38 @@
+name: Ops incident
+description: Track an operational issue, outage, or maintenance event.
+title: "fix: "
+labels:
+  - workflow
+  - scope:infra
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Capture the operational facts first. GitHub remains the live source of truth.
+  - type: textarea
+    id: incident
+    attributes:
+      label: Incident summary
+    validations:
+      required: true
+  - type: textarea
+    id: timeline
+    attributes:
+      label: Timeline
+      description: Include the first known signal, current state, and any mitigation.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Impacted scope
+      description: frontend, api, db, auth, infra, docs, or shared
+    validations:
+      required: true
+  - type: textarea
+    id: followup
+    attributes:
+      label: Follow-up
+      description: What needs to happen next?
+    validations:
+      required: true

@@ -1,0 +1,31 @@
+name: Maintainer override
+description: Request an exceptional admin or emergency workflow.
+title: "chore: "
+labels:
+  - workflow
+  - scope:shared
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this only for exceptional admin, emergency, or repository-ops work.
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why is an override needed?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: frontend, api, db, auth, infra, docs, or shared
+    validations:
+      required: true
+  - type: textarea
+    id: approval
+    attributes:
+      label: Approval or context
+      description: Reference any maintainer approval or operational context.
+    validations:
+      required: true

@@ -46,6 +46,7 @@ model Subscription {
   
   category      String?   
   description   String?   @db.Text
+  alerts        Alert[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

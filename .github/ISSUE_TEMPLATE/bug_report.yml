@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a product, API, or workflow bug.
+title: "fix: "
+labels:
+  - bug
+  - scope:shared
+body:
+  - type: markdown
+    attributes:
+      value: |
+        GitHub is the live source of truth. Use `Backlog` if no thematic milestone fits.
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: Choose the primary area affected by this bug.
+      options:
+        - frontend
+        - api
+        - db
+        - auth
+        - infra
+        - docs
+        - shared
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is broken?
+      placeholder: Describe the observed behavior and the expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal steps, inputs, and environment details.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Who is affected and how severe is it?

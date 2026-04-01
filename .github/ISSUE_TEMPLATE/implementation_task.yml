@@ -1,0 +1,46 @@
+name: Implementation task
+description: Track repo work, refactors, or workflow changes.
+title: "chore: "
+labels:
+  - workflow
+  - scope:shared
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For non-trivial work, create or reuse an issue and ensure it has a milestone.
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - frontend
+        - api
+        - db
+        - auth
+        - infra
+        - docs
+        - shared
+    validations:
+      required: true
+  - type: textarea
+    id: task
+    attributes:
+      label: Task
+      description: What needs to change?
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Plan
+      description: Brief implementation plan and any dependencies.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: What checks should run or be updated?
+    validations:
+      required: true

@@ -1,0 +1,39 @@
+name: Maintenance
+description: Keep tooling, docs, or repo hygiene current.
+title: "chore: "
+labels:
+  - workflow
+  - documentation
+  - scope:shared
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use `Backlog` when no thematic milestone fits.
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - frontend
+        - api
+        - db
+        - auth
+        - infra
+        - docs
+        - shared
+    validations:
+      required: true
+  - type: textarea
+    id: maintenance
+    attributes:
+      label: Maintenance goal
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: What should be run after this change?
+    validations:
+      required: true
