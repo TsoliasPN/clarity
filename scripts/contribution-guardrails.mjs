@@ -65,6 +65,11 @@ function isDocsOnly(files) {
   return files.length > 0 && files.every((file) => /\.(md|txt)$/i.test(file))
 }
 
+function isChecked(body, label) {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`- \\[x\\] ${escaped}`, 'i').test(body)
+}
+
 const errors = []
 const branch = currentBranch()
 const title = process.env.PR_TITLE || argValue('title')
@@ -89,7 +94,14 @@ if (body) {
   }
 
   if (/prisma\/schema\.prisma|prisma\/migrations\//i.test(files.join('\n'))) {
-    if (!/database\s*\/\s*schema impact/i.test(body) || /No database or schema changes/i.test(body)) {
+    const hasSchemaSection = /database\s*\/\s*schema impact/i.test(body)
+    const marksNoSchemaChange = isChecked(body, 'No database or schema changes')
+    const marksSchemaChange = isChecked(
+      body,
+      'Database or schema changes are included and the migration impact is described below'
+    )
+
+    if (!hasSchemaSection || marksNoSchemaChange || !marksSchemaChange) {
       errors.push(
         'PR body must describe the database/schema impact when Prisma schema or migration files change.'
       )
